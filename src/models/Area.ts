@@ -1,6 +1,4 @@
-import { Point } from 'mapbox-gl';
-
-export default class Expedition {
+export default class Area {
   id: number;
   coordinates: Array<Array<number>>;
   value: number;

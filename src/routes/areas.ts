@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { getAreas } from '../controllers/areas';
+import { createAreas } from '../controllers/areas';
 const router = Router();
 
-router.get('/', getAreas);
+router.post('/', createAreas);
 
 export default router;
