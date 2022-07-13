@@ -6,7 +6,7 @@ import Expedition from '../models/Expedition';
 import mongoDbQueryCreation from '../utils/mongoDBQueryCreation';
 import CartesianPoint from '../models/CartesianPoint';
 
-const numDivisions = 20;
+const numDivisions = 40;
 
 function calculateExpeditionValue(
   expedition: Expedition,
@@ -116,7 +116,7 @@ function coordinatesToMeters(
   const rad = function (x: number) {
     return (x * Math.PI) / 180;
   };
-  var R = 6378137; //Radi de la Terra en metres
+  var R = 6378.137; //Radi de la Terra en metres
   var dLat = rad(lat2 - lat1);
   var dLong = rad(lon2 - lon1);
   var a =
@@ -127,7 +127,7 @@ function coordinatesToMeters(
       Math.sin(dLong / 2);
   var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   var d = R * c;
-  return Number(d.toFixed(2));
+  return Number(d.toFixed(5));
 }
 
 function areasToCartesianGrid(
@@ -193,9 +193,33 @@ function matchCartesianPointToArea(
   const cartesianPoint = cartesianGrid.find(
     (c) => c.x > xMin && c.x < xMax && c.y > yMin && c.y < yMax
   );
-  if (cartesianPoint) area.value = cartesianPoint.z;
+  if (cartesianPoint) area.value = cartesianPoint.z || 0;
   else console.log('NOOOO TROBAT');
   return area;
+}
+
+function makeGaussian(
+  amplitude: number,
+  x0: number,
+  y0: number,
+  sigmaX: number,
+  sigmaY: number
+) {
+  return function (
+    amplitude: number,
+    x0: number,
+    y0: number,
+    sigmaX: number,
+    sigmaY: number,
+    x: number,
+    y: number
+  ) {
+    var exponent = -(
+      Math.pow(x - x0, 2) / (2 * Math.pow(sigmaX, 2)) +
+      Math.pow(y - y0, 2) / (2 * Math.pow(sigmaY, 2))
+    );
+    return amplitude * Math.pow(Math.E, exponent);
+  }.bind(null, amplitude, x0, y0, sigmaX, sigmaY);
 }
 
 function addWarehousesToCartesianGrid(
@@ -207,19 +231,42 @@ function addWarehousesToCartesianGrid(
   minLongitude: number
 ) {
   warehouses.forEach((warehouse) => {
+    const maxCartesianPoint = cartesianGrid.reduce(
+      (prev: CartesianPoint, curr: CartesianPoint) => {
+        if (curr.z > prev.z) return curr;
+        return prev;
+      },
+      new CartesianPoint(0, 0, 0)
+    );
     if (warehouse.isAutomatic) {
-      const maxCartesianPoint = cartesianGrid.reduce(
-        (prev: CartesianPoint, curr: CartesianPoint) => {
-          if (curr.z > prev.z) return curr;
-          return prev;
-        },
-        new CartesianPoint(0, 0, 0)
-      );
-      warehouse.coordinates = [
+      //AFEGIR DECIDIR PUNT EN FUNCIÓ DE LA INTEGRAL
+      warehouse.coordinates = new Point(
         minLatitude + maxCartesianPoint.x / metersLat,
-        minLongitude + maxCartesianPoint.y / metersLong,
-      ];
+        minLongitude + maxCartesianPoint.y / metersLong
+      );
     }
+    const warehouseGausian = makeGaussian(
+      maxCartesianPoint.z,
+      coordinatesToMeters(minLatitude, warehouse.coordinates.x, 0, 0),
+      coordinatesToMeters(
+        0,
+        0,
+        minLongitude,
+        warehouse.coordinates.y
+      ),
+      warehouse.radius / 3.5,
+      warehouse.radius / 3.5
+    );
+    cartesianGrid.forEach((point: CartesianPoint) => {
+      point.z -= warehouseGausian(point.x, point.y);
+      if (
+        !point ||
+        point.z === undefined ||
+        point.z === null ||
+        point.z < 0
+      )
+        point.z = 0;
+    });
   });
   return { warehouses, cartesianGrid };
 }
@@ -263,6 +310,12 @@ export const createAreas = async (req: Request, res: Response) => {
   const metersLong =
     coordinatesToMeters(0, 0, minLongitude, maxLongitude) /
     (maxLongitude - minLongitude);
+  const widthArea =
+    coordinatesToMeters(0, 0, minLongitude, maxLongitude) /
+    numDivisions;
+  const heightArea =
+    coordinatesToMeters(minLatitude, maxLatitude, 0, 0) /
+    numDivisions;
   let areas: Area[] = createEmptyAreas(
     minLatitude,
     maxLatitude,
@@ -285,7 +338,7 @@ export const createAreas = async (req: Request, res: Response) => {
     minLongitude
   ));
   //Calcular noves areas
-  const newAreas = areas.map((area) =>
+  let newAreas = areas.map((area) =>
     matchCartesianPointToArea(
       area,
       cartesianGrid,
@@ -293,6 +346,10 @@ export const createAreas = async (req: Request, res: Response) => {
       minLongitude
     )
   );
-  let areasFiltered = areas.filter((area) => area.value > 0);
-  res.json({ areas: areasFiltered, warehouses });
+  newAreas = newAreas.filter((area) => area.value > 0);
+  res.json({
+    areas: newAreas,
+    warehouses,
+    minRadius: Math.max(widthArea, heightArea),
+  });
 };
