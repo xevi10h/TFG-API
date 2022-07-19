@@ -231,6 +231,7 @@ function addWarehousesToCartesianGrid(
   minLongitude: number
 ) {
   warehouses.forEach((warehouse) => {
+    //Busquem la màxima altura de la superfície de paquets perquè si no les gaussianes no es creuaran amb la superfície
     const maxCartesianPoint = cartesianGrid.reduce(
       (prev: CartesianPoint, curr: CartesianPoint) => {
         if (curr.z > prev.z) return curr;
@@ -240,10 +241,50 @@ function addWarehousesToCartesianGrid(
     );
     if (warehouse.isAutomatic) {
       //AFEGIR DECIDIR PUNT EN FUNCIÓ DE LA INTEGRAL
-      warehouse.coordinates = new Point(
-        minLatitude + maxCartesianPoint.x / metersLat,
-        minLongitude + maxCartesianPoint.y / metersLong
-      );
+      if (warehouse.strategy === 'maxArea') {
+        warehouse.coordinates = new Point(
+          minLatitude + maxCartesianPoint.x / metersLat,
+          minLongitude + maxCartesianPoint.y / metersLong
+        );
+      }
+      if (warehouse.strategy === 'integral') {
+        const newWarehouse = cartesianGrid.reduce(
+          (prevPoint: CartesianPoint, currPoint: CartesianPoint) => {
+            //Construim la gaussiana de cada punt
+            const pointGausian = makeGaussian(
+              maxCartesianPoint.z,
+              currPoint.x,
+              currPoint.y,
+              warehouse.radius / 3.5,
+              warehouse.radius / 3.5
+            );
+            // Busquem el sumatori de diferències entre la gaussiana en qüestió y la quadrícula
+            const result = cartesianGrid.reduce(
+              (prev: number, curr: CartesianPoint) => {
+                const gaussiana = pointGausian(curr.x, curr.y);
+                const diference =
+                  curr.z - (maxCartesianPoint.z - gaussiana);
+                if (diference > 0) prev += diference;
+                return prev;
+              },
+              0
+            );
+            if (result > prevPoint.z) {
+              prevPoint = new CartesianPoint(
+                currPoint.x,
+                currPoint.y,
+                result
+              );
+            }
+            return prevPoint;
+          },
+          new CartesianPoint(0, 0, 0)
+        );
+        warehouse.coordinates = new Point(
+          minLatitude + newWarehouse.x / metersLat,
+          minLongitude + newWarehouse.y / metersLong
+        );
+      }
     }
     const warehouseGausian = makeGaussian(
       maxCartesianPoint.z,
@@ -351,5 +392,13 @@ export const createAreas = async (req: Request, res: Response) => {
     areas: newAreas,
     warehouses,
     minRadius: Math.max(widthArea, heightArea),
+    maxNewPoint: Number(
+      cartesianGrid
+        .reduce(
+          (p: number, c: CartesianPoint) => (c.z > p ? c.z : p),
+          0
+        )
+        .toFixed(2)
+    ),
   });
 };
