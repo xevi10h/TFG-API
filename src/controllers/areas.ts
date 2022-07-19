@@ -388,17 +388,20 @@ export const createAreas = async (req: Request, res: Response) => {
     )
   );
   newAreas = newAreas.filter((area) => area.value > 0);
+  const { newMaxPoint, totalLoad } = newAreas.reduce(
+    (prev, curr: Area) => {
+      if (curr.value > prev.newMaxPoint)
+        prev.newMaxPoint = curr.value;
+      prev.totalLoad += curr.value;
+      return prev;
+    },
+    { newMaxPoint: 0, totalLoad: 0 }
+  );
   res.json({
     areas: newAreas,
     warehouses,
     minRadius: Math.max(widthArea, heightArea),
-    maxNewPoint: Number(
-      cartesianGrid
-        .reduce(
-          (p: number, c: CartesianPoint) => (c.z > p ? c.z : p),
-          0
-        )
-        .toFixed(2)
-    ),
+    maxNewPoint: newMaxPoint,
+    totalLoad: totalLoad,
   });
 };
