@@ -6,7 +6,7 @@ import Expedition from '../models/Expedition';
 import mongoDbQueryCreation from '../utils/mongoDBQueryCreation';
 import CartesianPoint from '../models/CartesianPoint';
 
-const numDivisions = 40;
+const numDivisions = 10;
 
 function calculateExpeditionValue(
   expedition: Expedition,
@@ -194,7 +194,6 @@ function matchCartesianPointToArea(
     (c) => c.x > xMin && c.x < xMax && c.y > yMin && c.y < yMax
   );
   if (cartesianPoint) area.value = cartesianPoint.z || 0;
-  else console.log('NOOOO TROBAT');
   return area;
 }
 
@@ -239,7 +238,7 @@ function addWarehousesToCartesianGrid(
       },
       new CartesianPoint(0, 0, 0)
     );
-    if (warehouse.isAutomatic) {
+    if (warehouse.isAutomatic && warehouse.isFixed !== true) {
       //AFEGIR DECIDIR PUNT EN FUNCIÓ DE LA INTEGRAL
       if (warehouse.strategy === 'maxArea') {
         warehouse.coordinates = new Point(
@@ -298,16 +297,21 @@ function addWarehousesToCartesianGrid(
       warehouse.radius / 3.5,
       warehouse.radius / 3.5
     );
+    let absorbedLoad = 0;
     cartesianGrid.forEach((point: CartesianPoint) => {
+      const oldValue = point.z;
       point.z -= warehouseGausian(point.x, point.y);
       if (
         !point ||
         point.z === undefined ||
         point.z === null ||
         point.z < 0
-      )
+      ) {
         point.z = 0;
+      }
+      absorbedLoad += oldValue - point.z;
     });
+    warehouse.absorbedLoad = absorbedLoad;
   });
   return { warehouses, cartesianGrid };
 }
@@ -370,14 +374,16 @@ export const createAreas = async (req: Request, res: Response) => {
     minLongitude
   );
   //Afegir magatzems
-  ({ cartesianGrid, warehouses } = addWarehousesToCartesianGrid(
-    warehouses,
-    cartesianGrid,
-    metersLat,
-    metersLong,
-    minLatitude,
-    minLongitude
-  ));
+  if (Array.isArray(warehouses) && warehouses.length > 0) {
+    ({ cartesianGrid, warehouses } = addWarehousesToCartesianGrid(
+      warehouses,
+      cartesianGrid,
+      metersLat,
+      metersLong,
+      minLatitude,
+      minLongitude
+    ));
+  }
   //Calcular noves areas
   let newAreas = areas.map((area) =>
     matchCartesianPointToArea(
@@ -387,6 +393,7 @@ export const createAreas = async (req: Request, res: Response) => {
       minLongitude
     )
   );
+
   newAreas = newAreas.filter((area) => area.value > 0);
   const { newMaxPoint, totalLoad } = newAreas.reduce(
     (prev, curr: Area) => {
