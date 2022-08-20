@@ -21,7 +21,7 @@ function calculateExpeditionValue(
       return Math.min(expedition.volume, expedition.weight);
     case 'sum':
       return expedition.volume + expedition.weight;
-    case 'min':
+    case 'mul':
       return expedition.volume * expedition.weight;
     default:
       return 1;
