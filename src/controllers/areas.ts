@@ -325,9 +325,9 @@ export const createAreas = async (req: Request, res: Response) => {
     warehouses,
   } = req.body;
   const query = mongoDbQueryCreation({
-    dateRange,
-    volumeRange,
-    weightRange,
+    dateRange: `${dateRange[0]},${dateRange[1]}`,
+    weightRange: `${weightRange[0]},${weightRange[1]}`,
+    volumeRange: `${volumeRange[0]},${volumeRange[1]}`,
   });
   const rawExpeditions = await connection
     .collection('expeditions')
