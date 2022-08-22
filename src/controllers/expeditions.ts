@@ -5,9 +5,18 @@ import mongoDbQueryCreation from '../utils/mongoDBQueryCreation';
 export const getExpeditions = async (req: Request, res: Response) => {
   const { dateRange, volumeRange, weightRange } = req.query;
   const query = mongoDbQueryCreation({
-    dateRange,
-    volumeRange,
-    weightRange,
+    dateRange:
+      dateRange && typeof dateRange === 'string'
+        ? [dateRange.split(',')[0], dateRange.split(',')[1]]
+        : [],
+    volumeRange:
+      volumeRange && typeof volumeRange === 'string'
+        ? [volumeRange.split(',')[0], volumeRange.split(',')[1]]
+        : [],
+    weightRange:
+      weightRange && typeof weightRange === 'string'
+        ? [weightRange.split(',')[0], weightRange.split(',')[1]]
+        : [],
   });
   const expeditions = await connection
     .collection('expeditions')

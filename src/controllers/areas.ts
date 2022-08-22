@@ -6,7 +6,7 @@ import Expedition from '../models/Expedition';
 import mongoDbQueryCreation from '../utils/mongoDBQueryCreation';
 import CartesianPoint from '../models/CartesianPoint';
 
-const numDivisions = 45;
+const numDivisions = 30;
 
 function calculateExpeditionValue(
   expedition: Expedition,
@@ -325,9 +325,9 @@ export const createAreas = async (req: Request, res: Response) => {
     warehouses,
   } = req.body;
   const query = mongoDbQueryCreation({
-    dateRange: `${dateRange[0]},${dateRange[1]}`,
-    weightRange: `${weightRange[0]},${weightRange[1]}`,
-    volumeRange: `${volumeRange[0]},${volumeRange[1]}`,
+    dateRange,
+    weightRange,
+    volumeRange,
   });
   const rawExpeditions = await connection
     .collection('expeditions')

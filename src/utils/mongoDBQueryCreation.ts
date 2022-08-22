@@ -9,43 +9,51 @@ export default function mongoDbQueryCreation(
 ): any[] {
   const { dateRange, volumeRange, weightRange } = props;
   let query: any[] = [];
-  if (dateRange && typeof dateRange === 'string') {
+  if (Array.isArray(dateRange) && dateRange.length > 1) {
     query = [
       ...query,
-      { dateFull: { $gte: new Date(dateRange.split(',')[0]) } },
-      { dateFull: { $lte: new Date(dateRange.split(',')[1]) } },
+      { dateFull: { $gte: new Date(dateRange[0]) } },
+      { dateFull: { $lte: new Date(dateRange[1]) } },
     ];
   }
-  if (volumeRange && typeof volumeRange === 'string') {
-    const volumeRangeFrom = volumeRange.split(',')[0];
-    const volumeRangeTo = volumeRange.split(',')[1];
+  if (Array.isArray(volumeRange) && volumeRange.length > 1) {
     if (
-      volumeRangeFrom !== 'undefined' &&
-      Number(volumeRangeFrom) >= 0
+      volumeRange[0] !== 'undefined' &&
+      Number(volumeRange[0]) >= 0
     ) {
       query = [
         ...query,
-        { volume: { $gte: Number(volumeRangeFrom) } },
+        { volume: { $gte: Number(volumeRange[0]) } },
       ];
     }
-    if (volumeRangeTo !== 'undefined' && Number(volumeRangeTo) >= 0) {
-      query = [...query, { volume: { $lte: Number(volumeRangeTo) } }];
+    if (
+      volumeRange[1] !== 'undefined' &&
+      Number(volumeRange[1]) >= 0
+    ) {
+      query = [
+        ...query,
+        { volume: { $lte: Number(volumeRange[1]) } },
+      ];
     }
   }
-  if (weightRange && typeof weightRange === 'string') {
-    const weightRangeFrom = weightRange.split(',')[0];
-    const weightRangeTo = weightRange.split(',')[1];
+  if (Array.isArray(weightRange) && weightRange.length > 1) {
     if (
-      weightRangeFrom !== 'undefined' &&
-      Number(weightRangeFrom) >= 0
+      weightRange[0] !== 'undefined' &&
+      Number(weightRange[0]) >= 0
     ) {
       query = [
         ...query,
-        { weight: { $gte: Number(weightRangeFrom) } },
+        { weight: { $gte: Number(weightRange[0]) } },
       ];
     }
-    if (weightRangeTo !== 'undefined' && Number(weightRangeTo) >= 0) {
-      query = [...query, { weight: { $lte: Number(weightRangeTo) } }];
+    if (
+      weightRange[1] !== 'undefined' &&
+      Number(weightRange[1]) >= 0
+    ) {
+      query = [
+        ...query,
+        { weight: { $lte: Number(weightRange[1]) } },
+      ];
     }
   }
   return query;
