@@ -6,7 +6,7 @@ import Expedition from '../models/Expedition';
 import mongoDbQueryCreation from '../utils/mongoDBQueryCreation';
 import CartesianPoint from '../models/CartesianPoint';
 
-const numDivisions = 30;
+const numDivisions = Number(process.env.NUM_DIVISIONS) || 30;
 
 function calculateExpeditionValue(
   expedition: Expedition,
