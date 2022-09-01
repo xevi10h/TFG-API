@@ -133,7 +133,9 @@ function coordinatesToKm(
 function areasToCartesianGrid(
   areas: Area[],
   minLatitude: number,
-  minLongitude: number
+  minLongitude: number,
+  averageLatitude: number,
+  averageLongitude: number
 ) {
   const cartesianGrid: CartesianPoint[] = [];
   areas.forEach((area) => {
@@ -143,12 +145,12 @@ function areasToCartesianGrid(
           area.coordinates[0][0] +
             (area.coordinates[0][1] - area.coordinates[0][0]) / 2,
           minLatitude,
-          0,
-          0
+          averageLongitude,
+          averageLongitude
         ),
         coordinatesToKm(
-          0,
-          0,
+          averageLatitude,
+          averageLatitude,
           area.coordinates[1][0] +
             (area.coordinates[1][1] - area.coordinates[1][0]) / 2,
           minLongitude
@@ -164,29 +166,31 @@ function matchCartesianPointToArea(
   area: Area,
   cartesianGrid: CartesianPoint[],
   minLatitude: number,
-  minLongitude: number
+  minLongitude: number,
+  averageLatitude: number,
+  averageLongitude: number
 ) {
   const xMin = coordinatesToKm(
     minLatitude,
     area.coordinates[0][0],
-    0,
-    0
+    averageLongitude,
+    averageLongitude
   );
   const xMax = coordinatesToKm(
     minLatitude,
     area.coordinates[0][1],
-    0,
-    0
+    averageLongitude,
+    averageLongitude
   );
   const yMin = coordinatesToKm(
-    0,
-    0,
+    averageLatitude,
+    averageLatitude,
     minLongitude,
     area.coordinates[1][0]
   );
   const yMax = coordinatesToKm(
-    0,
-    0,
+    averageLatitude,
+    averageLatitude,
     minLongitude,
     area.coordinates[1][1]
   );
@@ -197,28 +201,26 @@ function matchCartesianPointToArea(
   return area;
 }
 
-function makeGaussian(
+function makeSymmetricalGaussian(
   amplitude: number,
   x0: number,
   y0: number,
-  sigmaX: number,
-  sigmaY: number
+  radius: number
 ) {
   return function (
     amplitude: number,
     x0: number,
     y0: number,
-    sigmaX: number,
-    sigmaY: number,
+    radius: number,
     x: number,
     y: number
   ) {
     var exponent = -(
-      Math.pow(x - x0, 2) / (2 * Math.pow(sigmaX, 2)) +
-      Math.pow(y - y0, 2) / (2 * Math.pow(sigmaY, 2))
+      Math.pow(x - x0, 2) / (2 * Math.pow(radius / 3.5, 2)) +
+      Math.pow(y - y0, 2) / (2 * Math.pow(radius / 3.5, 2))
     );
     return amplitude * Math.pow(Math.E, exponent);
-  }.bind(null, amplitude, x0, y0, sigmaX, sigmaY);
+  }.bind(null, amplitude, x0, y0, radius);
 }
 
 function addWarehousesToCartesianGrid(
@@ -227,7 +229,9 @@ function addWarehousesToCartesianGrid(
   kmsLat: number,
   kmsLong: number,
   minLatitude: number,
-  minLongitude: number
+  minLongitude: number,
+  averageLatitude: number,
+  averageLongitude: number
 ) {
   warehouses.forEach((warehouse) => {
     //Busquem la màxima altura de la superfície de paquets perquè si no les gaussianes no es creuaran amb la superfície
@@ -250,12 +254,11 @@ function addWarehousesToCartesianGrid(
         const newWarehouse = cartesianGrid.reduce(
           (prevPoint: CartesianPoint, currPoint: CartesianPoint) => {
             //Construim la gaussiana de cada punt
-            const pointGausian = makeGaussian(
+            const pointGausian = makeSymmetricalGaussian(
               maxCartesianPoint.z,
               currPoint.x,
               currPoint.y,
-              warehouse.radius / 3.5,
-              warehouse.radius / 3.5
+              warehouse.radius
             );
             // Busquem el sumatori de diferències entre la gaussiana en qüestió y la quadrícula
             const result = cartesianGrid.reduce(
@@ -285,12 +288,21 @@ function addWarehousesToCartesianGrid(
         );
       }
     }
-    const warehouseGausian = makeGaussian(
+    const warehouseGausian = makeSymmetricalGaussian(
       maxCartesianPoint.z,
-      coordinatesToKm(minLatitude, warehouse.coordinates.x, 0, 0),
-      coordinatesToKm(0, 0, minLongitude, warehouse.coordinates.y),
-      warehouse.radius / 3.5,
-      warehouse.radius / 3.5
+      coordinatesToKm(
+        minLatitude,
+        warehouse.coordinates.x,
+        averageLongitude,
+        averageLongitude
+      ),
+      coordinatesToKm(
+        averageLatitude,
+        averageLatitude,
+        minLongitude,
+        warehouse.coordinates.y
+      ),
+      warehouse.radius
     );
     let absorbedLoad = 0;
     cartesianGrid.forEach((point: CartesianPoint) => {
@@ -344,31 +356,47 @@ export const createAreas = async (req: Request, res: Response) => {
   );
   const { minLatitude, maxLatitude, minLongitude, maxLongitude } =
     minMaxCoordinates(expeditions);
+  const averageLatitude = (minLatitude + maxLatitude) / 2;
+  const averageLongitude = (minLongitude + maxLongitude) / 2;
   const kmsLat =
     coordinatesToKm(
       minLatitude,
       maxLatitude,
-      (minLongitude + minLongitude) / 2,
-      (minLongitude + minLongitude) / 2
+      averageLongitude,
+      averageLongitude
     ) /
     (maxLatitude - minLatitude);
   const kmsLong =
-    coordinatesToKm(64.15, 64.15, minLongitude, maxLongitude) /
+    coordinatesToKm(
+      averageLatitude,
+      averageLatitude,
+      minLongitude,
+      maxLongitude
+    ) /
     (maxLongitude - minLongitude);
   const heightArea =
     coordinatesToKm(
       minLatitude,
       maxLatitude,
-      (minLongitude + minLongitude) / 2,
-      (minLongitude + minLongitude) / 2
+      averageLongitude,
+      averageLongitude
     ) / numDivisions;
   const widthArea =
     coordinatesToKm(
-      (minLatitude + maxLatitude) / 2,
-      (minLatitude + maxLatitude) / 2,
+      averageLatitude,
+      averageLatitude,
       minLongitude,
       maxLongitude
     ) / numDivisions;
+  const smallRadius = warehouses.find(
+    (warehouse: any) =>
+      warehouse.radius < Math.max(widthArea, heightArea)
+  );
+  if (smallRadius) {
+    res
+      .status(400)
+      .send(`Radius of warehouse ${smallRadius.id} to small`);
+  }
   let areas: Area[] = createEmptyAreas(
     minLatitude,
     maxLatitude,
@@ -379,7 +407,9 @@ export const createAreas = async (req: Request, res: Response) => {
   let cartesianGrid = areasToCartesianGrid(
     areas,
     minLatitude,
-    minLongitude
+    minLongitude,
+    averageLatitude,
+    averageLongitude
   );
   //Afegir magatzems
   if (Array.isArray(warehouses) && warehouses.length > 0) {
@@ -389,7 +419,9 @@ export const createAreas = async (req: Request, res: Response) => {
       kmsLat,
       kmsLong,
       minLatitude,
-      minLongitude
+      minLongitude,
+      averageLatitude,
+      averageLongitude
     ));
   }
   //Calcular noves areas
@@ -398,7 +430,9 @@ export const createAreas = async (req: Request, res: Response) => {
       area,
       cartesianGrid,
       minLatitude,
-      minLongitude
+      minLongitude,
+      averageLatitude,
+      averageLongitude
     )
   );
 
@@ -417,6 +451,6 @@ export const createAreas = async (req: Request, res: Response) => {
     warehouses,
     minRadius: Math.max(widthArea, heightArea),
     maxNewPoint: newMaxPoint,
-    totalLoad: totalLoad,
+    totalLoad,
   });
 };
